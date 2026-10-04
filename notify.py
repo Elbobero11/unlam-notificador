@@ -11,6 +11,11 @@ The webhook URL is read from the DISCORD_WEBHOOK_URL environment variable.
     python notify.py --prune-only          # remove events that already ended, send nothing
     python notify.py --placeholder-alert --removed 3   # send the "no real events left" alert
     python notify.py --today 2026-10-02    # pretend today is another date
+    python notify.py --roles-file roles.json   # file that maps role names to Discord role IDs
+
+Role pings: an event in events.json can have an optional "role": a role name from roles.json, or
+a Discord role ID. The reminder for that event then pings that role. Nothing else in a message
+can ping anyone (no @everyone, no @here). An unknown role only produces a warning in the log.
 
 "No real events left" alert: while, after the cleanup, the only element left in events.json is
 the PLACEHOLDER event below, the workflow sends a message to a second Discord channel (webhook
@@ -43,6 +48,9 @@ PLACEHOLDER = {
 }
 ALERT_ENV = "DISCORD_WEBHOOK_URL_2"  # environment variable holding the second channel's webhook
 STATE_FILE = "alert_state.json"  # remembers the date of the last "no real events left" alert
+ROLES_FILE = "roles.json"  # maps role names to Discord role IDs (see README)
+_ROLE_ID = re.compile(r"\d{17,20}")  # what a Discord role ID (a "snowflake") looks like
+_ROLE_MENTION = re.compile(r"<@&(\d{17,20})>")  # how a role ping is written inside a message
 
 
 class EventsFileError(ValueError):
@@ -118,6 +126,7 @@ def load_events(path):
                 "activity": _field(item, "activity", where),
                 "section": item.get("section", ""),
                 "note": item.get("note", ""),
+                "role": item.get("role") or "",  # optional: role name (see roles.json) or role ID to ping
                 "start": parse_date(_field(item, "start", where), where),
                 "end": parse_date(_field(item, "end", where), where),
             }
@@ -153,6 +162,60 @@ def prune_file(path, today, dry_run=False):
     return removed, keep
 
 
+def _role_key(name):
+    return str(name).strip().lstrip("@").strip().casefold()
+
+
+def load_roles(path):
+    """Read roles.json, shaped like {"Role name": "role ID"}. Returns {normalized name: ID}.
+
+    A missing file is fine (no names are known). A broken file or a bad ID only produces a
+    warning, so reminders are never lost because of the role setup.
+    """
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except FileNotFoundError:
+        return {}
+    except (OSError, ValueError) as exc:
+        print(f"WARNING: can't read {path} ({exc}); role pings are off for this run.", file=sys.stderr)
+        return {}
+    if not isinstance(data, dict):
+        print(f'WARNING: {path} should look like {{"Role name": "role ID"}}; role pings are off for this run.', file=sys.stderr)
+        return {}
+    roles = {}
+    for name, role_id in data.items():
+        role_id = str(role_id).strip()
+        if _ROLE_ID.fullmatch(role_id):
+            roles[_role_key(name)] = role_id
+        else:
+            print(f"WARNING: {path}: the ID for {name!r} doesn't look like a Discord role ID (17 to 20 digits); ignored.", file=sys.stderr)
+    return roles
+
+
+def resolve_role(value, roles, where):
+    """Role ID to ping for an event's "role" field, or None. `value` is a name from roles.json or an ID."""
+    if value in (None, ""):
+        return None
+    if not isinstance(value, str):
+        print(f'WARNING: {where}: "role" must be text (a role name or an ID); nobody was pinged.', file=sys.stderr)
+        return None
+    text = value.strip().lstrip("@").strip()
+    if not text:
+        return None
+    if _ROLE_ID.fullmatch(text):
+        return text
+    role_id = roles.get(_role_key(text))
+    if role_id is None:
+        print(f"WARNING: {where}: the role {value!r} is not in roles.json (and is not a role ID), so nobody was pinged.", file=sys.stderr)
+    return role_id
+
+
+def pinged_roles(content):
+    """Role IDs mentioned in a message, in order of appearance and without repeats."""
+    return list(dict.fromkeys(_ROLE_MENTION.findall(content)))
+
+
 DAYS_ES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]  # date.weekday(): Monday = 0
 
 
@@ -166,8 +229,13 @@ def when(start, today):
     return "hoy" if n == 0 else "mañana" if n == 1 else f"en {n} días"
 
 
-def build_message(events, today):
-    """Discord markdown: `##` for the title and `###` for each date, with the event underneath."""
+def build_message(events, today, roles=None):
+    """Discord markdown: `##` for the title and `###` for each date, with the event underneath.
+
+    If an event has a "role", the role's mention is added at the end of its detail line.
+    `roles` is the {name: ID} mapping from load_roles().
+    """
+    roles = roles or {}
     lines = ["## 📅 Próximas fechas importantes"]
     for e in events:
         span = fmt_date(e["start"])
@@ -179,6 +247,9 @@ def build_message(events, today):
             detail += f" · _{e['section']}_"
         if e["note"]:
             detail += f" ({e['note']})"
+        role_id = resolve_role(e.get("role", ""), roles, f"event {e['activity']!r}")
+        if role_id:
+            detail += f" <@&{role_id}>"
         lines.append(detail)
     msg = "\n".join(lines)
     if len(msg) > DISCORD_LIMIT:
@@ -187,7 +258,14 @@ def build_message(events, today):
 
 
 def send_discord(url, content):
-    body = json.dumps({"content": content}).encode("utf-8")
+    body = json.dumps(
+        {
+            "content": content,
+            # Only the roles mentioned in this message may be pinged. @everyone, @here and users never are,
+            # even if their text shows up in an event name or note.
+            "allowed_mentions": {"parse": [], "roles": pinged_roles(content)},
+        }
+    ).encode("utf-8")
     req = urllib.request.Request(
         url,
         data=body,
@@ -305,6 +383,7 @@ def main():
                     help="repeat the 'no real events left' alert every this many days (default 10; 0 = every run)")
     ap.add_argument("--state-file", default=STATE_FILE, help=f"where the last alert date is kept (default {STATE_FILE})")
     ap.add_argument("--record-alert", action="store_true", help="save today's date as the date of the last alert and exit")
+    ap.add_argument("--roles-file", default=ROLES_FILE, help=f"maps role names to Discord role IDs (default {ROLES_FILE})")
     args = ap.parse_args()
     if args.alert_every < 0:
         ap.error("--alert-every can't be negative")
@@ -361,9 +440,12 @@ def main():
         print(f"{today}: no event starts {days_txt} days from today. Nothing sent.")
         return 0
 
-    message = build_message(due, today)
+    message = build_message(due, today, load_roles(args.roles_file))
     if args.dry_run:
         print(message)
+        pings = pinged_roles(message)
+        if pings:
+            print(f"\n(dry run) would ping the role ID(s): {', '.join(pings)}")
         return 0
 
     return send_from_env("DISCORD_WEBHOOK_URL", message, f"{today}: sent {len(due)} event(s) to Discord")
@@ -371,3 +453,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
