@@ -32,6 +32,63 @@ The workflow has no `schedule:` of its own. A free [cron-job.org](https://cron-j
 
 Reminders are decided by the date in Argentina, so avoid a trigger time very close to midnight.
 
+## Loading the dates from a Google Sheet
+
+A second workflow, `sync_sheet.yml`, copies the sheet into `events.json` once a day. **The sheet is the place where you edit**; manual changes to `events.json` are overwritten on the next sync.
+
+- Only rows whose **start date is after today** are loaded (`start > today`). Rows in the past, or starting today, are skipped and the sheet is never modified.
+- `events.json` becomes: the rows from the sheet + the placeholder event. If no future rows are left, only the placeholder remains and the "no real events left" alert logic takes over as before.
+- If the sheet can't be read (not shared, link wrong, Google down, a row with an invalid date), the run **fails, GitHub emails you, and `events.json` stays as it was**.
+
+**Sheet layout** (first row = headers; order doesn't matter, extra columns are ignored):
+
+| section | activity | start | end | note | role |
+|---|---|---|---|---|---|
+| Instancia Diciembre 2026 | Exámenes | 2026-12-10 | 2026-12-19 | | Estudiantes |
+
+`end`, `note` and `role` can be empty (no `end` = single day). Spanish headers also work (`seccion, actividad, inicio, fin, nota, rol`). Dates can be `2026-12-10` or `10/12/2026` (day/month/year). To avoid surprises, format the date columns as plain text or as *Format → Number → Custom date and time → `yyyy-mm-dd`*.
+
+**Setup**
+
+1. In the sheet: *Share → General access → Anyone with the link → Viewer*, or *File → Share → Publish to web → choose the tab and "Comma-separated values (.csv)"*.
+2. CSV link: for a shared sheet use `https://docs.google.com/spreadsheets/d/SHEET_ID/export?format=csv&gid=TAB_ID` (the `gid` is in the browser URL); for a published one use the link Google gives you.
+3. Save it as a repository secret named `SHEET_CSV_URL`. Anyone with that link can read the sheet, so keep it as a secret.
+4. Run *Sync events from Google Sheet* by hand once from the Actions tab and check the log (`Sheet read: N event(s)...`).
+5. **Second cron-job.org job:** same as the first one, but the URL ends in `.../workflows/sync_sheet.yml/dispatches` (same body and headers, same token). Schedule it **before** the reminder job, for example 15:00 if reminders run at 15:30.
+
+Both workflows share a lock (`concurrency: events-file`), so they never edit `events.json` at the same time.
+
+Local test: `python sync_sheet.py --csv-file sheet.csv --file events.json --dry-run --today 2026-10-13`
+
+## Pinging a role
+
+An event can ping a Discord role when its reminder is sent. Add an optional `"role"` to the event in `events.json`:
+
+```json
+{"section": "Instancia Diciembre 2026", "activity": "Exámenes", "start": "2026-12-10", "end": "2026-12-19", "note": "", "role": "Estudiantes"}
+```
+
+Discord only pings a role when the message contains its **numeric ID**, and a webhook can't look a role up by name. So the name goes through a small mapping file, `roles.json`:
+
+```json
+{
+  "Estudiantes": "123456789012345678",
+  "Docentes": "987654321098765432"
+}
+```
+
+1. **Get the role ID:** in Discord open *User Settings → Advanced* and turn on **Developer Mode**. Then *Server Settings → Roles*, right-click the role and choose **Copy Role ID**. (Another way: type `\@RoleName` in a channel and send it; Discord shows `<@&123…>`, and the digits are the ID.)
+2. **Add it to `roles.json`** as `"Name": "ID"`. Names are not case-sensitive, and a leading `@` is ignored.
+3. **Use the name** in the event's `"role"`. You can also put the ID there directly and skip `roles.json`.
+
+How it behaves:
+
+- The mention is added at the end of that event's line, e.g. `Exámenes · _Instancia Diciembre 2026_ @Estudiantes`, and only when that reminder is sent.
+- Only the roles mentioned in the message are pinged. `@everyone`, `@here` and individual users never are, even if that text appears in an event name or note.
+- An unknown role, a typo, a broken `roles.json` or a role ID that doesn't look valid never blocks the reminder. The message goes out without the ping and the Actions log shows a `WARNING` saying why.
+- Events without `"role"` work as before. The cleanup keeps the field, and the placeholder event can have one without changing how it is detected.
+- If the ping shows the role name but doesn't notify its members, check the role's settings in Discord: *Server Settings → Roles → the role → Display → Allow anyone to @mention this role*. Discord's documentation doesn't say whether webhooks need that, so I haven't been able to confirm it either way.
+
 ## Changing the reminder days
 
 Edit `--remind-days 5,3,1` in `.github/workflows/notify.yml`. For example `7,2,0` reminds a week before, two days before, and on the day itself.
@@ -44,7 +101,7 @@ Edit `--remind-days 5,3,1` in `.github/workflows/notify.yml`. For example `7,2,0
 {"section": "Instancia Diciembre 2026", "activity": "Exámenes", "start": "2026-12-10", "end": "2026-12-19", "note": ""}
 ```
 
-Dates can be written `2026-10-03` or `2026-10-3`. You can edit the file by hand, or regenerate it from a saved copy of the calendar page:
+Dates can be written `2026-10-03` or `2026-10-3`. An optional `"role"` pings a Discord role (see "Pinging a role"). You can edit the file by hand, or regenerate it from a saved copy of the calendar page:
 
 ```
 pip install requests beautifulsoup4
