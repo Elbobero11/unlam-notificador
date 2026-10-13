@@ -1,0 +1,41 @@
+name: Sync events from Google Sheet
+
+on:
+  # Started every day by a second cron-job.org job (same API call as notify.yml, but with
+  # .../workflows/sync_sheet.yml/dispatches). Schedule it BEFORE the reminder job, e.g. 15:00 if
+  # the reminders go out at 15:30. You can also start it by hand from the Actions tab.
+  workflow_dispatch:
+
+permissions:
+  contents: write # commits the updated events.json
+
+# Share the lock with notify.yml so both never edit/push events.json at the same time.
+concurrency:
+  group: events-file
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      # Fails (and GitHub emails you) if the sheet can't be read; events.json is then left untouched.
+      - name: Load the sheet into events.json
+        env:
+          SHEET_CSV_URL: ${{ secrets.SHEET_CSV_URL }}
+        run: python3 sync_sheet.py --file events.json
+
+      - name: Commit if events.json changed
+        run: |
+          if git diff --quiet -- events.json; then
+            echo "events.json did not change."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add events.json
+            git commit -m "Sync events from Google Sheet"
+            git pull --rebase
+            git push
+          fi
