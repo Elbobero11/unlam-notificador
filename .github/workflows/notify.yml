@@ -1,14 +1,24 @@
 name: UNLaM date reminder
 
 on:
-  workflow_dispatch: # lets you run it manually from the Actions tab to test
+  # No `schedule:` on purpose. GitHub's own scheduler was delaying or dropping runs in this repo,
+  # so an external service (cron-job.org) starts this workflow every day through the GitHub API
+  # (POST /repos/OWNER/REPO/actions/workflows/notify.yml/dispatches). See the README.
+  # Keeping a `schedule:` here as well would send duplicate reminders if both fire.
+  # You can also start it by hand from the Actions tab (Run workflow).
+  workflow_dispatch:
 
 permissions:
   contents: write # needed to commit the cleaned-up events.json and alert_state.json
 
+# Same lock as sync_sheet.yml, so only one of them touches events.json at a time.
+concurrency:
+  group: events-file
+  cancel-in-progress: false
+
 jobs:
   notify:
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
