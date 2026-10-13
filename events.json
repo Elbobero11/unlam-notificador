@@ -1,9 +1,17 @@
 [
   {
+    "section": "Inscripcion",
+    "activity": "Finales",
+    "start": "2026-10-14",
+    "end": "2026-10-14",
+    "note": "",
+    "role": "alumno"
+  },
+  {
     "section": "Instancia",
     "activity": "Nombre de evento",
-    "start": "2050-1-1",
-    "end": "2050-1-2",
+    "start": "2050-01-01",
+    "end": "2050-01-02",
     "note": ""
   }
 ]
