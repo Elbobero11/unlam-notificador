@@ -32,7 +32,7 @@ import urllib.request
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-from notify import PLACEHOLDER
+from notify import PLACEHOLDER, is_placeholder
 
 TZ = ZoneInfo("America/Argentina/Buenos_Aires")
 ENV = "SHEET_CSV_URL"
@@ -162,6 +162,7 @@ def main():
     ap.add_argument("--file", default="events.json", help="events file to rewrite (default events.json)")
     ap.add_argument("--csv-file", help="read this local CSV instead of downloading (for tests)")
     ap.add_argument("--today", help="override today's date (YYYY-MM-DD)")
+    ap.add_argument("--state-file", default="alert_state.json", help="alert state file (default alert_state.json)")
     ap.add_argument("--dry-run", action="store_true", help="show the result without writing the file")
     args = ap.parse_args()
 
@@ -187,6 +188,9 @@ def main():
     except (OSError, ValueError):
         old = None  # missing or broken file: it gets replaced with the sheet's content
 
+    had_real = isinstance(old, list) and any(
+        isinstance(i, dict) and not is_placeholder(i) for i in old
+    )
     print(f"Sheet read: {len(events)} event(s) starting after {today.isoformat()}.")
     if old == new:
         print(f"{args.file} already matches the sheet. Nothing to do.")
@@ -198,6 +202,11 @@ def main():
         json.dump(new, fh, ensure_ascii=False, indent=2)
         fh.write("\n")
     print(f"{args.file} updated.")
+    # The list just ran out of real events: forget the date of the last alert so the
+    # "no real events left" alert goes out on the next notify run instead of waiting for the interval.
+    if had_real and not events and os.path.exists(args.state_file):
+        os.remove(args.state_file)
+        print(f"No real events left: {args.state_file} removed so the alert goes out on the next run.")
 
 
 if __name__ == "__main__":
