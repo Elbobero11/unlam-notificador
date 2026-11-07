@@ -14,7 +14,8 @@ The webhook URL is read from the DISCORD_WEBHOOK_URL environment variable.
     python notify.py --roles-file roles.json   # file that maps role names to Discord role IDs
 
 Role pings: an event in events.json can have an optional "role": a role name from roles.json, or
-a Discord role ID. The reminder for that event then pings that role. Nothing else in a message
+a Discord role ID (or several, separated by commas or as a JSON list). The reminder for that event
+then pings those roles. roles.json can be {"Name": "ID"} or a list like [{"Name": "ID"}, ...]. Nothing else in a message
 can ping anyone (no @everyone, no @here). An unknown role only produces a warning in the log.
 
 "No real events left" alert: while, after the cleanup, the only element left in events.json is
@@ -166,6 +167,29 @@ def _role_key(name):
     return str(name).strip().lstrip("@").strip().casefold()
 
 
+def _role_pairs(data):
+    """(name, id) pairs from roles.json. Accepts {"Name": "ID"} or a list of {"name": "...", "id": "..."}
+    items (or of one-pair objects like {"Name": "ID"}). Returns None for anything else."""
+    if isinstance(data, dict):
+        return list(data.items())
+    if isinstance(data, list):
+        pairs = []
+        for item in data:
+            if not isinstance(item, dict):
+                return None
+            low = {str(k).lower(): v for k, v in item.items()}
+            name = next((low[k] for k in ("name", "nombre", "role", "rol") if k in low), None)
+            rid = next((low[k] for k in ("id", "role_id") if k in low), None)
+            if name is not None and rid is not None:
+                pairs.append((name, rid))
+            elif len(item) == 1:
+                pairs.extend(item.items())
+            else:
+                return None
+        return pairs
+    return None
+
+
 def load_roles(path):
     """Read roles.json, shaped like {"Role name": "role ID"}. Returns {normalized name: ID}.
 
@@ -180,11 +204,12 @@ def load_roles(path):
     except (OSError, ValueError) as exc:
         print(f"WARNING: can't read {path} ({exc}); role pings are off for this run.", file=sys.stderr)
         return {}
-    if not isinstance(data, dict):
-        print(f'WARNING: {path} should look like {{"Role name": "role ID"}}; role pings are off for this run.', file=sys.stderr)
+    pairs = _role_pairs(data)
+    if pairs is None:
+        print(f'WARNING: {path} should look like {{"Role name": "role ID"}} (or a list of {{"name": ..., "id": ...}}); role pings are off for this run.', file=sys.stderr)
         return {}
     roles = {}
-    for name, role_id in data.items():
+    for name, role_id in pairs:
         role_id = str(role_id).strip()
         if _ROLE_ID.fullmatch(role_id):
             roles[_role_key(name)] = role_id
@@ -209,6 +234,23 @@ def resolve_role(value, roles, where):
     if role_id is None:
         print(f"WARNING: {where}: the role {value!r} is not in roles.json (and is not a role ID), so nobody was pinged.", file=sys.stderr)
     return role_id
+
+
+def resolve_roles(value, roles, where):
+    """Role IDs to ping for an event's "role" field. `value` can be one role (a name from roles.json or
+    an ID), several separated by commas or semicolons ("Estudiantes, Docentes"), or a JSON list of them."""
+    if isinstance(value, (list, tuple)):
+        parts = list(value)
+    elif isinstance(value, str):
+        parts = re.split(r"[,;]", value)
+    else:
+        parts = [value]
+    ids = []
+    for part in parts:
+        role_id = resolve_role(part, roles, where)
+        if role_id and role_id not in ids:
+            ids.append(role_id)
+    return ids
 
 
 def pinged_roles(content):
@@ -247,8 +289,7 @@ def build_message(events, today, roles=None):
             detail += f" · _{e['section']}_"
         if e["note"]:
             detail += f" ({e['note']})"
-        role_id = resolve_role(e.get("role", ""), roles, f"event {e['activity']!r}")
-        if role_id:
+        for role_id in resolve_roles(e.get("role", ""), roles, f"event {e['activity']!r}"):
             detail += f" <@&{role_id}>"
         lines.append(detail)
     msg = "\n".join(lines)
@@ -453,4 +494,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
