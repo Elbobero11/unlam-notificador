@@ -1,5 +1,181 @@
 [
   {
+    "section": "Inscripcion",
+    "activity": "Finales",
+    "start": "2026-11-12",
+    "end": "2026-11-13",
+    "note": "",
+    "role": "alumno"
+  },
+  {
+    "section": "Verificacion",
+    "activity": "Finales",
+    "start": "2026-11-18",
+    "end": "2026-11-18",
+    "note": "",
+    "role": "alumno"
+  },
+  {
+    "section": "Inscripcion",
+    "activity": "Verano",
+    "start": "2026-12-14",
+    "end": "2026-12-17",
+    "note": "",
+    "role": "alumno"
+  },
+  {
+    "section": "Verificacion",
+    "activity": "Verano",
+    "start": "2026-12-22",
+    "end": "2026-12-22",
+    "note": "",
+    "role": "alumno"
+  },
+  {
+    "section": "Inscripcion",
+    "activity": "Finales",
+    "start": "2027-02-04",
+    "end": "2027-02-05",
+    "note": "",
+    "role": "alumno"
+  },
+  {
+    "section": "Verificacion",
+    "activity": "Finales",
+    "start": "2027-02-12",
+    "end": "2027-02-12",
+    "note": "",
+    "role": "alumno"
+  },
+  {
+    "section": "Inscripcion",
+    "activity": "Primer cuatri",
+    "start": "2027-03-02",
+    "end": "2027-03-05",
+    "note": "",
+    "role": "alumno"
+  },
+  {
+    "section": "Verificacion",
+    "activity": "Primer cuatri",
+    "start": "2027-03-15",
+    "end": "2027-03-15",
+    "note": "",
+    "role": "alumno"
+  },
+  {
+    "section": "Ingreso",
+    "activity": "Preinscripcion",
+    "start": "2027-05-10",
+    "end": "2027-06-14",
+    "note": "",
+    "role": "ingresante"
+  },
+  {
+    "section": "Ingreso",
+    "activity": "Documentacion",
+    "start": "2027-05-17",
+    "end": "2027-06-14",
+    "note": "",
+    "role": "ingresante"
+  },
+  {
+    "section": "Inscripcion",
+    "activity": "Finales",
+    "start": "2027-06-24",
+    "end": "2027-06-25",
+    "note": "",
+    "role": "alumno"
+  },
+  {
+    "section": "Verificacion",
+    "activity": "Finales",
+    "start": "2027-07-07",
+    "end": "2027-07-07",
+    "note": "",
+    "role": "alumno"
+  },
+  {
+    "section": "Inscripcion",
+    "activity": "Segundo cuatri",
+    "start": "2027-07-27",
+    "end": "2027-07-30",
+    "note": "",
+    "role": "alumno"
+  },
+  {
+    "section": "Verificacion",
+    "activity": "Segundo cuatri",
+    "start": "2027-08-09",
+    "end": "2027-08-09",
+    "note": "",
+    "role": "alumno"
+  },
+  {
+    "section": "Ingreso",
+    "activity": "Preinscripcion",
+    "start": "2027-09-27",
+    "end": "2027-10-25",
+    "note": "",
+    "role": "ingresante"
+  },
+  {
+    "section": "Ingreso",
+    "activity": "Documentacion",
+    "start": "2027-10-04",
+    "end": "2027-10-05",
+    "note": "",
+    "role": "ingresante"
+  },
+  {
+    "section": "Inscripcion",
+    "activity": "Finales",
+    "start": "2027-11-11",
+    "end": "2027-11-12",
+    "note": "",
+    "role": "alumno"
+  },
+  {
+    "section": "Verificacion",
+    "activity": "Finales",
+    "start": "2027-11-24",
+    "end": "2027-11-24",
+    "note": "",
+    "role": "alumno"
+  },
+  {
+    "section": "Inscripcion",
+    "activity": "Verano",
+    "start": "2027-12-14",
+    "end": "2027-12-17",
+    "note": "",
+    "role": "alumno"
+  },
+  {
+    "section": "Verificacion",
+    "activity": "Verano",
+    "start": "2027-12-21",
+    "end": "2027-12-21",
+    "note": "",
+    "role": "alumno"
+  },
+  {
+    "section": "Inscripcion",
+    "activity": "Finales",
+    "start": "2028-02-03",
+    "end": "2028-02-04",
+    "note": "",
+    "role": "alumno"
+  },
+  {
+    "section": "Verificacion",
+    "activity": "Finales",
+    "start": "2028-02-11",
+    "end": "2028-02-11",
+    "note": "",
+    "role": "alumno"
+  },
+  {
     "section": "Instancia",
     "activity": "Nombre de evento",
     "start": "2050-01-01",
