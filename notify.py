@@ -412,7 +412,7 @@ def parse_days(text):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--file", default="events.json")
-    ap.add_argument("--remind-days", type=parse_days, default=parse_days("5,3,1"),
+    ap.add_argument("--remind-days", type=parse_days, default=parse_days("1"),
                     help="days before an event's start to send a reminder (default 5,3,1)")
     ap.add_argument("--today", help="override today's date (YYYY-MM-DD)")
     ap.add_argument("--dry-run", action="store_true", help="print instead of sending / writing")
