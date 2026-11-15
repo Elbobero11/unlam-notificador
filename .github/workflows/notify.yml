@@ -27,7 +27,7 @@ jobs:
       - name: Notify Discord
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: python3 notify.py --file events.json --remind-days 5,3,1
+        run: python3 notify.py --file events.json --remind-days 1
 
       # Runs even if the notification failed, so old events don't pile up.
       # Only commits when something was actually removed.
